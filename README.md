@@ -28,9 +28,15 @@ Any further requests, ideas, and conributions are very welcome.
 TxtPutizer is designed with as easiest integration into any project as possible in mind. The entire library is contained within a single header file: [`TxtPutizer.hpp`](https://github.com/RuBublik/TxtPutizer/blob/master/TxtPutizer/single_include/TxtPutizer/TxtPutizer.hpp), requiring no modifications to your project settings.
 
 
-### Basic usage
+## Basic usage guide
 
-To present a menu to a terminal window -
+First and foremost, inlcude the header file by placing it in a known location. Example:
+
+```cpp
+#include "single_include\TxtPutizer\TxtPutizer.hpp"
+```
+
+Then, to present a menu to a terminal window -
 1. Create a Menu object of the desired type, passing just a title for the menu.
 
 ```cpp
@@ -101,13 +107,13 @@ iterate and check all options
 for (Option opt : cbmState.options) {
 
     // print all properties of each option
-	std::wcout << opt._displayName << L"\t " 
+    std::wcout << opt._displayName << L"\t " 
     std::wcout << opt._description << L"\t " 
     std::wcout << opt.IsSelected() << std::endl;
 }
 ```
 
-For more complete usage examples, refer to [`here`](https://github.com/RuBublik/TxtPutizer/blob/master/TxtPutizer/tests/MainTest.cpp) file in this repository.
+** For more complete usage examples, refer to [`this`](https://github.com/RuBublik/TxtPutizer/blob/master/TxtPutizer/tests/MainTest.cpp) file in this repository.
 
 ***
 Feel free to reach out with any questions or suggestions!

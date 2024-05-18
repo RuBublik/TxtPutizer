@@ -10,7 +10,7 @@ void example_checkbox_menu()
 	cbm.execute();
 	MenuState cbmState = cbm.getState();
 
-	std::wcout << L"\r\nOPTION\tDESCRIPTION\t\tSELECTED" << std::endl;
+	std::wcout << L"\r\nOPTION\t DESCRIPTION\t\t SELECTED" << std::endl;
 	for (Option opt : cbmState.options) {
 		std::wcout << opt._displayName << L"\t" << opt._description << L"\t" << opt.IsSelected() << std::endl;
 	}
