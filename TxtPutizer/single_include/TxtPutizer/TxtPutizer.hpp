@@ -78,11 +78,12 @@ private:
 	MenuState(std::vector<Option>& options) : options(options) {}
 };
 
-
+/// <summary>
+/// most basic menu class
+/// </summary>
 class BasicMenu 
 {
 public:
-	BasicMenu(std::wstring menuTitle) : _title(menuTitle), _options({}) {}
 
 	void addOption(const std::wstring& optDisplayName, const std::wstring& optDescription = L"") {
 		_options.push_back({ optDisplayName, optDescription });
@@ -96,24 +97,58 @@ public:
 
 private:
 protected:
+	BasicMenu(const std::wstring& menuTitle) : _title(menuTitle), _options({}) {}
+	~BasicMenu() {};
+
 	std::wstring _title;
 	std::vector<Option> _options;
-	int _cursor = 0;
+	int m_menuCursorPos = 0;
+	//int m_consoleCursorPos = 0;
 
 	virtual void renderTitle() = 0;
-	virtual void renderOptions() = 0;
 
 	void clearLine() {
 		std::cout << "\033[2K"; // overwrite current line
 		std::cout << "\033[0G"; // Move cursor to beginning of line
 	}
 
-	void moveCursorUp(int lines) {
-		std::cout << "\033[" << lines << "A";
+	void clearLeft(int chars) {
+		std::cout << "\033[" << chars << "D"; // Move cursor n characters to the left
+		for (int i = 0; i < chars; ++i) {
+			std::cout << ' '; // overwrite with spaces
+		}
+		std::cout << "\033[" << chars << "D"; // reset console cursor to initial position
 	}
 
-	void moveCursorDown(int lines) {
-		std::cout << "\033[" << lines << "B";
+	void clearRight(int chars) {
+		for (int i = 0; i < chars; ++i) {
+			std::cout << ' '; // overwrite with spaces
+		}
+		std::cout << "\033[" << chars << "D"; // reset console cursor to initial position
+	}
+
+	void moveConsoleCursorLeft(int chars) {
+		if (chars) {
+			std::cout << "\033[" << chars << "D";
+		}
+	}
+	
+	void moveConsoleCursorRight(int chars) {
+		if (chars) {
+			std::cout << "\033[" << chars << "C";
+		}
+	}
+
+	void moveConsoleCursorUp(int lines) {
+		if (lines) {
+			std::cout << "\033[" << lines << "A";
+		}
+	}
+
+	void moveConsoleCursorDown(int lines) {
+		if (lines) {
+			std::cout << "\033[" << lines << "B";
+		}
 	}
 
 	void toggleOption(Option& option) {
@@ -129,57 +164,21 @@ protected:
 	}
 };
 
-
 /// <summary>
-/// Allows the user to choose any amount of option from a list of options.
+/// base class for vertical menus
 /// </summary>
-class CheckboxMenu : public BasicMenu 
+class VerticalMenu : public BasicMenu
 {
 public:
-	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
-		: _cursorStyle(cursorStyle), BasicMenu(menuTitle) {};
-
-	void execute()
-	{
-		char keyPress;
-		BOOL finitoLaComedia = FALSE;
-
-		renderTitle();
-		do
-		{
-			renderOptions();
-
-			// MENU CONTROL
-			// (get user input & update state)
-			keyPress = _getch();
-			switch (keyPress)
-			{
-			case KEY_SPACEBAR:
-				toggleOption(_options[_cursor]);
-				break;
-			case KEY_ARROW_UP:
-				if (_cursor > 0) {
-					_cursor--;
-				}
-				break;
-			case KEY_ARROW_DOWN:
-				if (_cursor < _options.size() - 1) {
-					_cursor++;
-				}
-				break;
-			case KEY_ENTER:
-				finitoLaComedia = TRUE;
-			}
-
-		} while (!finitoLaComedia);
-
-		// clear description before exit
-		renderDeleteDescription();
-	}
-
 private:
 	const wchar_t _cursorStyle;
-	BOOL bFirstRender = TRUE;
+
+protected:
+
+	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
+		: BasicMenu(menuTitle), _cursorStyle(cursorStyle) {};
+	~VerticalMenu() {};
+
 
 	void renderTitle()
 	{
@@ -190,58 +189,109 @@ private:
 		std::wcout << std::endl;
 	}
 
-	void renderOptions()
+	void renderOption(int optIdx)
 	{
-		// skip moving cursor on first render
-		if (bFirstRender) {
-			bFirstRender = FALSE;
-		}
-		else {
-			renderDeleteDescription();
-			moveCursorUp(_options.size());
-		}
+		// move console cursor to line of selected option
+		moveConsoleCursorDown(optIdx);
 
-		// print options, line by line.
-		int idx = 0;
-		for (const auto& opt : _options) {
-			
-			// clear screen
-			clearLine();
-			
-			// display state
-			std::wcout << (_cursor == idx ? _cursorStyle : L' ');
-			std::wcout << L" [" << (opt.IsSelected() ? L'*' : L' ') << L"] ";
-			std::wcout << opt._displayName;
-			std::wcout << std::endl;
-			
-			idx++;
-		}
+		// display option
+		clearLine();
+		std::wcout << (m_menuCursorPos == optIdx ? _cursorStyle : L' ');
+		std::wcout << L" [" << (_options[optIdx].IsSelected() ? L'*' : L' ') << L"] ";
+		std::wcout << _options[optIdx]._displayName;
+		std::wcout << std::endl;
 
-		// display description of hovered option
-		std::wcout << L"-\n" << _options[_cursor]._description << std::endl;
+		// reset console cursor to initial position
+		moveConsoleCursorUp(optIdx + 1/*account for lines rendered above*/);
 	}
 
-	void renderDeleteDescription()
-	{
-		moveCursorUp(1);
-		clearLine();
-		moveCursorUp(1);
+
+	void deleteDescription() {	// DOES NOT RESET CONSOLE CURSOR
+		// move console cursor to line of selected option, and delete
+		moveConsoleCursorDown(_options.size() + 1);
 		clearLine();
 	}
 
-protected:
+	void renderDescription(int optIdx) {
+		deleteDescription();
+		std::wcout << _options[m_menuCursorPos]._description << std::endl;
+
+		// reset console cursor to initial position
+		moveConsoleCursorUp(_options.size() + 2/*account for lines rendered above*/);
+	}
 };
 
+/// <summary>
+/// Allows the user to choose any amount of option from a list of options.
+/// </summary>
+class CheckboxMenu : public VerticalMenu
+{
+public:
+	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
+		: VerticalMenu(menuTitle, cursorStyle) {};
+
+	void execute()
+	{
+		char keyPress;
+		BOOL finitoLaComedia = FALSE;
+
+		renderTitle();
+		
+		// display all options
+		for (int i = 0; i < _options.size(); i++) {
+			renderOption(i);
+		}
+		renderDescription(0);
+
+		do
+		{
+			// MENU CONTROL
+			// (get user input & update state)
+			keyPress = _getch();
+			switch (keyPress)
+			{
+			case KEY_SPACEBAR:
+				toggleOption(_options[m_menuCursorPos]);
+				break;
+			case KEY_ARROW_UP:
+				if (m_menuCursorPos > 0) {
+					m_menuCursorPos--;
+					renderOption(m_menuCursorPos + 1);
+				}
+				break;
+			case KEY_ARROW_DOWN:
+				if (m_menuCursorPos < _options.size() - 1) {
+					m_menuCursorPos++;
+					renderOption(m_menuCursorPos - 1);
+				}
+				break;
+			case KEY_ENTER:
+				finitoLaComedia = TRUE;
+			
+			}
+
+			renderOption(m_menuCursorPos);
+			renderDescription(m_menuCursorPos);
+
+		} while (!finitoLaComedia);
+
+		// clear description before exit
+		deleteDescription();
+	}
+
+private:
+protected:
+};
 
 /// <summary>
 /// Allows the user to choose one option from a list of options,
 /// where selecting one option deselects any previously selected option.
 /// </summary>
-class RadioMenu : public BasicMenu
+class RadioMenu : public VerticalMenu
 {
 public:
 	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
-		: _cursorStyle(cursorStyle), BasicMenu(menuTitle) {};
+		: VerticalMenu(menuTitle, cursorStyle) {};
 
 	void execute()
 	{
@@ -249,195 +299,198 @@ public:
 		BOOL finitoLaComedia = FALSE;
 
 		renderTitle();
+
+		// display all options
+		for (int i = 0; i < _options.size(); i++) {
+			renderOption(i);
+		}
+		renderDescription(0);
+
 		do
 		{
-			renderOptions();
-
 			// MENU CONTROL
 			// (get user input & update state)
 			keyPress = _getch();
 			switch (keyPress)
 			{
 			case KEY_SPACEBAR:
-				for (auto& opt : _options) {
-					unselectOption(opt);
+				// un-select selected option
+				for (int i = 0; i < _options.size(); i++) {
+					if (_options[i].IsSelected()) {
+						unselectOption(_options[i]);
+						renderOption(i);
+					}
 				}
-				toggleOption(_options[_cursor]);
+				toggleOption(_options[m_menuCursorPos]);
 				break;
 			case KEY_ARROW_UP:
-				if (_cursor > 0) {
-					_cursor--;
+				if (m_menuCursorPos > 0) {
+					m_menuCursorPos--;
+					renderOption(m_menuCursorPos + 1);
 				}
 				break;
 			case KEY_ARROW_DOWN:
-				if (_cursor < _options.size() - 1) {
-					_cursor++;
+				if (m_menuCursorPos < _options.size() - 1) {
+					m_menuCursorPos++;
+					renderOption(m_menuCursorPos - 1);
 				}
 				break;
 			case KEY_ENTER:
 				finitoLaComedia = TRUE;
 			}
+
+			renderOption(m_menuCursorPos);
+			renderDescription(m_menuCursorPos);
 
 		} while (!finitoLaComedia);
 
 		// clear description before exit
-		renderDeleteDescription();
+		deleteDescription();
 	}
 
 private:
-	const wchar_t _cursorStyle;
-	BOOL bFirstRender = TRUE;
-
-	void renderTitle()
-	{
-		std::wcout << _title << std::endl;
-		for (int i = 0; i < _title.length(); i++) {
-			std::wcout << L"-";
-		}
-		std::wcout << std::endl;
-	}
-
-	void renderOptions()
-	{
-		// skip moving cursor on first render
-		if (bFirstRender) {
-			bFirstRender = FALSE;
-		}
-		else {
-			renderDeleteDescription();
-			moveCursorUp(_options.size());
-		}
-
-		// print options, line by line.
-		int idx = 0;
-		for (const auto& opt : _options) {
-
-			// clear screen
-			clearLine();
-
-			// display state
-			std::wcout << (_cursor == idx ? _cursorStyle : L' ');
-			std::wcout << L" [" << (opt.IsSelected() ? L'*' : L' ') << L"] ";
-			std::wcout << opt._displayName;
-			std::wcout << std::endl;
-
-			idx++;
-		}
-
-		// display description of hovered option
-		std::wcout << L"-\n" << _options[_cursor]._description << std::endl;
-	}
-
-	void renderDeleteDescription()
-	{
-		moveCursorUp(1);
-		clearLine();
-		moveCursorUp(1);
-		clearLine();
-	}
-
 protected:
 };
 
 /// <summary>
-/// Single line prompt, allows the user to choose one option from a list of options.
-/// (practically, a horizontal RadioMenu. Best for short questions, like yes/no prompt.)
+/// base class for horizontal menus
 /// </summary>
-class PromptMenu : public BasicMenu
+class HorizontalMenu : public BasicMenu
 {
 public:
-	PromptMenu(const std::wstring& menuTitle) : BasicMenu(menuTitle) {};
-
-	void execute()
-	{
-		char keyPress;
-		BOOL finitoLaComedia = FALSE;
-
-		do
-		{
-			singleLineRender();
-
-			// MENU CONTROL
-			// (get user input & update state)
-			keyPress = _getch();
-			switch (keyPress)
-			{
-			case KEY_ARROW_LEFT:
-				if (_cursor > 0) {
-					_cursor--;
-				}
-				break;
-			case KEY_ARROW_RIGHT:
-				if (_cursor < _options.size() - 1) {
-					_cursor++;
-				}
-				break;
-			// either of space/enter makes a selection
-			case KEY_SPACEBAR:
-			case KEY_ENTER:
-				selectOption(_options[_cursor]);
-				finitoLaComedia = TRUE;
-				break;
-			}
-
-		} while (!finitoLaComedia);
-
-		renderDeleteDescription();
-	}
-
 private:
-	BOOL bFirstRender = TRUE;
+protected:
+	size_t m_maxOptLength = 8;
 
-	void singleLineRender()
-	{
-		// skip moving cursor on first render
-		if (bFirstRender) {
-			bFirstRender = FALSE;
-		}
-		else {
-			renderDeleteDescription();
-			moveCursorUp(1);
-			clearLine();
-		}
-		renderTitle();
-		renderOptions();
-	}
-
-	void renderDeleteDescription()
-	{
-		moveCursorUp(1);
-		clearLine();
-		moveCursorUp(1);
-		clearLine();
-	}
+	HorizontalMenu(const std::wstring& menuTitle)
+		: BasicMenu(menuTitle) {};
+	~HorizontalMenu() {};
 
 	void renderTitle()
 	{
 		std::wcout << _title << L"  ";
 	}
 
-	void renderOptions()
+	std::wstring truncateString(const std::wstring& str)
 	{
-		int idx = 0;
-		for (auto& opt : _options) {
-	
-			// display state
-			if (_cursor == idx) {
-				std::wcout << "[ " << opt._displayName << " ]";
-			}
-			else {
-				std::wcout << "  " << opt._displayName << "  ";
-			}			
-			std::wcout << L" \| ";
-
-			idx++;
+		if (str.size() > m_maxOptLength) {
+			return str.substr(0, m_maxOptLength - 3) + L"...";
 		}
-		std::wcout << L"\b\b" << L' ' << std::endl;	// delete trailing slash after loop
-
-		// display description of hovered option
-		std::wcout << L"-\n" << _options[_cursor]._description << std::endl;
+		return str;
 	}
 
+	void renderOption(int optIdx)
+	{
+		// move console cursor to line of selected option
+		int optStartPos = 0;
+		for (int i = 0; i < optIdx; i++) {
+			optStartPos += truncateString(
+				_options[i]._displayName).size() > m_maxOptLength ?
+				m_maxOptLength : _options[i]._displayName.size();
+			optStartPos += 4/*account for spacing between options*/;
+			if (i < _options.size() - 1) {
+				optStartPos += 3;
+			}
+		}
+		moveConsoleCursorRight(optStartPos);
+
+		// display option
+		std::wstring truncatedOpt = truncateString(_options[optIdx]._displayName);
+		int optLength = truncatedOpt.size() > m_maxOptLength ?
+			m_maxOptLength : _options[optIdx]._displayName.size() 
+			+ 4/*account for spacing between options*/;
+		clearRight(optLength);
+
+		if (m_menuCursorPos == optIdx) {
+			std::wcout << "[ " << truncatedOpt << " ]";
+		}
+		else {
+			std::wcout << "  " << truncatedOpt << "  ";
+		}
+
+		if (optIdx < _options.size() - 1) {
+			std::wcout << L" \| ";
+			optLength += 3;
+		}
+
+		// reset console cursor to initial position
+		moveConsoleCursorLeft(optStartPos + optLength);
+	}
+
+	void deleteDescription() {	// DOES NOT RESET CONSOLE CURSOR
+		// move console cursor to line of selected option, and delete
+		moveConsoleCursorDown(2);
+		clearLine();
+	}
+
+	void renderDescription(int optIdx) {
+		deleteDescription();
+		std::wcout << _options[m_menuCursorPos]._description << std::endl;
+
+		// reset console cursor to initial position
+		moveConsoleCursorUp(3/*account for lines rendered above*/);
+		moveConsoleCursorRight(_title.size() + 2/*account for spacing - title to opts*/);
+	}
+};
+
+/// <summary>
+/// Single line prompt, allows the user to choose one option from a list of options.
+/// (practically, a horizontal RadioMenu. Best for short questions, like yes/no prompt.)
+/// </summary>
+class PromptMenu : public HorizontalMenu
+{
+public:
+	PromptMenu(const std::wstring& menuTitle) : HorizontalMenu(menuTitle) {};
+
+	void execute()
+	{
+		char keyPress;
+		BOOL finitoLaComedia = FALSE;
+
+		renderTitle();
+
+		// display all options
+		for (int i = 0; i < _options.size(); i++) {
+			renderOption(i);
+		}
+		renderDescription(0);
+
+		do
+		{
+			// MENU CONTROL
+			// (get user input & update state)
+			keyPress = _getch();
+			switch (keyPress)
+			{
+			case KEY_ARROW_LEFT:
+				if (m_menuCursorPos > 0) {
+					m_menuCursorPos--;
+					renderOption(m_menuCursorPos + 1);
+				}
+				break;
+			case KEY_ARROW_RIGHT:
+				if (m_menuCursorPos < _options.size() - 1) {
+					m_menuCursorPos++;
+					renderOption(m_menuCursorPos - 1);
+				}
+				break;
+			// either of space/enter makes a selection
+			case KEY_SPACEBAR:
+			case KEY_ENTER:
+				selectOption(_options[m_menuCursorPos]);
+				finitoLaComedia = TRUE;
+				break;
+			}
+
+			renderOption(m_menuCursorPos);
+			renderDescription(m_menuCursorPos);
+
+		} while (!finitoLaComedia);
+
+		deleteDescription();
+	}
+
+private:
 protected:
 };
 
