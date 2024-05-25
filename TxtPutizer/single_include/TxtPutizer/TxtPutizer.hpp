@@ -69,7 +69,6 @@ struct MenuState
 
 	// grant 'BasicMenu' and derived classes access to private methods/members
 	friend class BasicMenu;
-	friend class RadioMenu;
 
 private:
 	// restrict instanciation only to friend classes
@@ -86,22 +85,22 @@ class BasicMenu
 public:
 
 	void addOption(const std::wstring& optDisplayName, const std::wstring& optDescription = L"") {
-		_options.push_back({ optDisplayName, optDescription });
+		m_options.push_back({ optDisplayName, optDescription });
 	}
 
 	virtual void execute() = 0;
 
 	MenuState getState() {
-		return MenuState(_options);
+		return MenuState(m_options);
 	}
 
 private:
 protected:
-	BasicMenu(const std::wstring& menuTitle) : _title(menuTitle), _options({}) {}
+	BasicMenu(const std::wstring& menuTitle) : m_title(menuTitle), m_options({}) {}
 	~BasicMenu() {};
 
-	std::wstring _title;
-	std::vector<Option> _options;
+	std::wstring m_title;
+	std::vector<Option> m_options;
 	int m_menuCursorPos = 0;
 	//int m_consoleCursorPos = 0;
 
@@ -182,8 +181,8 @@ protected:
 
 	void renderTitle()
 	{
-		std::wcout << _title << std::endl;
-		for (int i = 0; i < _title.length(); i++) {
+		std::wcout << m_title << std::endl;
+		for (int i = 0; i < m_title.length(); i++) {
 			std::wcout << L"-";
 		}
 		std::wcout << std::endl;
@@ -197,8 +196,8 @@ protected:
 		// display option
 		clearLine();
 		std::wcout << (m_menuCursorPos == optIdx ? _cursorStyle : L' ');
-		std::wcout << L" [" << (_options[optIdx].IsSelected() ? L'*' : L' ') << L"] ";
-		std::wcout << _options[optIdx]._displayName;
+		std::wcout << L" [" << (m_options[optIdx].IsSelected() ? L'*' : L' ') << L"] ";
+		std::wcout << m_options[optIdx]._displayName;
 		std::wcout << std::endl;
 
 		// reset console cursor to initial position
@@ -208,16 +207,16 @@ protected:
 
 	void deleteDescription() {	// DOES NOT RESET CONSOLE CURSOR
 		// move console cursor to line of selected option, and delete
-		moveConsoleCursorDown(_options.size() + 1);
+		moveConsoleCursorDown(m_options.size() + 1);
 		clearLine();
 	}
 
 	void renderDescription(int optIdx) {
 		deleteDescription();
-		std::wcout << _options[m_menuCursorPos]._description << std::endl;
+		std::wcout << m_options[m_menuCursorPos]._description << std::endl;
 
 		// reset console cursor to initial position
-		moveConsoleCursorUp(_options.size() + 2/*account for lines rendered above*/);
+		moveConsoleCursorUp(m_options.size() + 2/*account for lines rendered above*/);
 	}
 };
 
@@ -238,7 +237,7 @@ public:
 		renderTitle();
 		
 		// display all options
-		for (int i = 0; i < _options.size(); i++) {
+		for (int i = 0; i < m_options.size(); i++) {
 			renderOption(i);
 		}
 		renderDescription(0);
@@ -251,7 +250,7 @@ public:
 			switch (keyPress)
 			{
 			case KEY_SPACEBAR:
-				toggleOption(_options[m_menuCursorPos]);
+				toggleOption(m_options[m_menuCursorPos]);
 				break;
 			case KEY_ARROW_UP:
 				if (m_menuCursorPos > 0) {
@@ -260,7 +259,7 @@ public:
 				}
 				break;
 			case KEY_ARROW_DOWN:
-				if (m_menuCursorPos < _options.size() - 1) {
+				if (m_menuCursorPos < m_options.size() - 1) {
 					m_menuCursorPos++;
 					renderOption(m_menuCursorPos - 1);
 				}
@@ -301,7 +300,7 @@ public:
 		renderTitle();
 
 		// display all options
-		for (int i = 0; i < _options.size(); i++) {
+		for (int i = 0; i < m_options.size(); i++) {
 			renderOption(i);
 		}
 		renderDescription(0);
@@ -314,14 +313,13 @@ public:
 			switch (keyPress)
 			{
 			case KEY_SPACEBAR:
-				// un-select selected option
-				for (int i = 0; i < _options.size(); i++) {
-					if (_options[i].IsSelected()) {
-						unselectOption(_options[i]);
-						renderOption(i);
-					}
+				// un-select selected option, if one is selected
+				if (m_selectedOptIdx != -1) {
+					unselectOption(m_options[m_selectedOptIdx]);
+					renderOption(m_selectedOptIdx);
 				}
-				toggleOption(_options[m_menuCursorPos]);
+				toggleOption(m_options[m_menuCursorPos]);
+				m_selectedOptIdx = m_menuCursorPos;
 				break;
 			case KEY_ARROW_UP:
 				if (m_menuCursorPos > 0) {
@@ -330,13 +328,16 @@ public:
 				}
 				break;
 			case KEY_ARROW_DOWN:
-				if (m_menuCursorPos < _options.size() - 1) {
+				if (m_menuCursorPos < m_options.size() - 1) {
 					m_menuCursorPos++;
 					renderOption(m_menuCursorPos - 1);
 				}
 				break;
 			case KEY_ENTER:
-				finitoLaComedia = TRUE;
+				// prevent exit until an option is selected
+				if (m_selectedOptIdx != -1) {
+					finitoLaComedia = TRUE;
+				}
 			}
 
 			renderOption(m_menuCursorPos);
@@ -349,6 +350,8 @@ public:
 	}
 
 private:
+	int m_selectedOptIdx = -1;
+
 protected:
 };
 
@@ -368,7 +371,7 @@ protected:
 
 	void renderTitle()
 	{
-		std::wcout << _title << L"  ";
+		std::wcout << m_title << L"  ";
 	}
 
 	std::wstring truncateString(const std::wstring& str)
@@ -385,19 +388,19 @@ protected:
 		int optStartPos = 0;
 		for (int i = 0; i < optIdx; i++) {
 			optStartPos += truncateString(
-				_options[i]._displayName).size() > m_maxOptLength ?
-				m_maxOptLength : _options[i]._displayName.size();
+				m_options[i]._displayName).size() > m_maxOptLength ?
+				m_maxOptLength : m_options[i]._displayName.size();
 			optStartPos += 4/*account for spacing between options*/;
-			if (i < _options.size() - 1) {
+			if (i < m_options.size() - 1) {
 				optStartPos += 3;
 			}
 		}
 		moveConsoleCursorRight(optStartPos);
 
 		// display option
-		std::wstring truncatedOpt = truncateString(_options[optIdx]._displayName);
+		std::wstring truncatedOpt = truncateString(m_options[optIdx]._displayName);
 		int optLength = truncatedOpt.size() > m_maxOptLength ?
-			m_maxOptLength : _options[optIdx]._displayName.size() 
+			m_maxOptLength : m_options[optIdx]._displayName.size() 
 			+ 4/*account for spacing between options*/;
 		clearRight(optLength);
 
@@ -408,7 +411,7 @@ protected:
 			std::wcout << "  " << truncatedOpt << "  ";
 		}
 
-		if (optIdx < _options.size() - 1) {
+		if (optIdx < m_options.size() - 1) {
 			std::wcout << L" \| ";
 			optLength += 3;
 		}
@@ -425,11 +428,11 @@ protected:
 
 	void renderDescription(int optIdx) {
 		deleteDescription();
-		std::wcout << _options[m_menuCursorPos]._description << std::endl;
+		std::wcout << m_options[m_menuCursorPos]._description << std::endl;
 
 		// reset console cursor to initial position
 		moveConsoleCursorUp(3/*account for lines rendered above*/);
-		moveConsoleCursorRight(_title.size() + 2/*account for spacing - title to opts*/);
+		moveConsoleCursorRight(m_title.size() + 2/*account for spacing - title to opts*/);
 	}
 };
 
@@ -450,7 +453,7 @@ public:
 		renderTitle();
 
 		// display all options
-		for (int i = 0; i < _options.size(); i++) {
+		for (int i = 0; i < m_options.size(); i++) {
 			renderOption(i);
 		}
 		renderDescription(0);
@@ -469,7 +472,7 @@ public:
 				}
 				break;
 			case KEY_ARROW_RIGHT:
-				if (m_menuCursorPos < _options.size() - 1) {
+				if (m_menuCursorPos < m_options.size() - 1) {
 					m_menuCursorPos++;
 					renderOption(m_menuCursorPos - 1);
 				}
@@ -477,7 +480,7 @@ public:
 			// either of space/enter makes a selection
 			case KEY_SPACEBAR:
 			case KEY_ENTER:
-				selectOption(_options[m_menuCursorPos]);
+				selectOption(m_options[m_menuCursorPos]);
 				finitoLaComedia = TRUE;
 				break;
 			}
