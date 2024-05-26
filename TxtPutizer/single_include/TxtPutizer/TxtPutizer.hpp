@@ -102,9 +102,11 @@ protected:
 	std::wstring m_title;
 	std::vector<Option> m_options;
 	int m_menuCursorPos = 0;
-	//int m_consoleCursorPos = 0;
 
 	virtual void renderTitle() = 0;
+	virtual void renderOption(int optIdx) = 0;
+	virtual void renderDescription(int optIdx) = 0;
+	virtual void deleteDescription() = 0;
 
 	void clearLine() {
 		std::cout << "\033[2K"; // overwrite current line
@@ -170,16 +172,15 @@ class VerticalMenu : public BasicMenu
 {
 public:
 private:
-	const wchar_t _cursorStyle;
-
 protected:
 
 	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
-		: BasicMenu(menuTitle), _cursorStyle(cursorStyle) {};
+		: BasicMenu(menuTitle), m_cursorStyle(cursorStyle) {};
 	~VerticalMenu() {};
 
+	const wchar_t m_cursorStyle;
 
-	void renderTitle()
+	void renderTitle() override
 	{
 		std::wcout << m_title << std::endl;
 		for (int i = 0; i < m_title.length(); i++) {
@@ -188,14 +189,14 @@ protected:
 		std::wcout << std::endl;
 	}
 
-	void renderOption(int optIdx)
+	void renderOption(int optIdx) override
 	{
 		// move console cursor to line of selected option
 		moveConsoleCursorDown(optIdx);
 
 		// display option
 		clearLine();
-		std::wcout << (m_menuCursorPos == optIdx ? _cursorStyle : L' ');
+		std::wcout << (m_menuCursorPos == optIdx ? m_cursorStyle : L' ');
 		std::wcout << L" [" << (m_options[optIdx].IsSelected() ? L'*' : L' ') << L"] ";
 		std::wcout << m_options[optIdx]._displayName;
 		std::wcout << std::endl;
@@ -204,14 +205,22 @@ protected:
 		moveConsoleCursorUp(optIdx + 1/*account for lines rendered above*/);
 	}
 
+	void hideMenuCursor() {
+		m_menuCursorPos = -1;
 
-	void deleteDescription() {	// DOES NOT RESET CONSOLE CURSOR
+		// display all options
+		for (int i = 0; i < m_options.size(); i++) {
+			renderOption(i);
+		}
+	}
+
+	void deleteDescription() override {	// DOES NOT RESET CONSOLE CURSOR
 		// move console cursor to line of selected option, and delete
 		moveConsoleCursorDown(m_options.size() + 1);
 		clearLine();
 	}
 
-	void renderDescription(int optIdx) {
+	void renderDescription(int optIdx) override {
 		deleteDescription();
 		std::wcout << m_options[m_menuCursorPos]._description << std::endl;
 
@@ -229,7 +238,7 @@ public:
 	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
 		: VerticalMenu(menuTitle, cursorStyle) {};
 
-	void execute()
+	void execute() override
 	{
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
@@ -274,7 +283,8 @@ public:
 
 		} while (!finitoLaComedia);
 
-		// clear description before exit
+		// cleanup before exit
+		hideMenuCursor();
 		deleteDescription();
 	}
 
@@ -292,7 +302,7 @@ public:
 	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
 		: VerticalMenu(menuTitle, cursorStyle) {};
 
-	void execute()
+	void execute() override
 	{
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
@@ -345,7 +355,8 @@ public:
 
 		} while (!finitoLaComedia);
 
-		// clear description before exit
+		// cleanup before exit
+		hideMenuCursor();
 		deleteDescription();
 	}
 
@@ -369,7 +380,7 @@ protected:
 		: BasicMenu(menuTitle) {};
 	~HorizontalMenu() {};
 
-	void renderTitle()
+	void renderTitle() override
 	{
 		std::wcout << m_title << L"  ";
 	}
@@ -382,7 +393,7 @@ protected:
 		return str;
 	}
 
-	void renderOption(int optIdx)
+	void renderOption(int optIdx) override
 	{
 		// move console cursor to line of selected option
 		int optStartPos = 0;
@@ -420,13 +431,13 @@ protected:
 		moveConsoleCursorLeft(optStartPos + optLength);
 	}
 
-	void deleteDescription() {	// DOES NOT RESET CONSOLE CURSOR
+	void deleteDescription() override {	// DOES NOT RESET CONSOLE CURSOR
 		// move console cursor to line of selected option, and delete
 		moveConsoleCursorDown(2);
 		clearLine();
 	}
 
-	void renderDescription(int optIdx) {
+	void renderDescription(int optIdx) override {
 		deleteDescription();
 		std::wcout << m_options[m_menuCursorPos]._description << std::endl;
 
@@ -445,7 +456,7 @@ class PromptMenu : public HorizontalMenu
 public:
 	PromptMenu(const std::wstring& menuTitle) : HorizontalMenu(menuTitle) {};
 
-	void execute()
+	void execute() override
 	{
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
