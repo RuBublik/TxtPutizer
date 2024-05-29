@@ -107,6 +107,8 @@ protected:
 	virtual void renderOption(int optIdx) = 0;
 	virtual void renderDescription(int optIdx) = 0;
 	virtual void deleteDescription() = 0;
+	// scrolls console down enough line so menu is not torn apart
+	virtual void scrollConsole() = 0;	
 
 	void clearLine() {
 		std::cout << "\033[2K"; // overwrite current line
@@ -180,6 +182,15 @@ protected:
 
 	const wchar_t m_cursorStyle;
 
+	void scrollConsole() override
+	{
+		int totalLines = 2/*title*/ + m_options.size()/*options*/ + 2/*description*/;
+		for (int i = 0; i < totalLines; i++) {
+			std::cout << "\n";
+		}
+		moveConsoleCursorUp(totalLines);
+	}
+
 	void renderTitle() override
 	{
 		std::wcout << m_title << std::endl;
@@ -242,6 +253,8 @@ public:
 	{
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
+
+		scrollConsole();
 
 		renderTitle();
 		
@@ -306,6 +319,8 @@ public:
 	{
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
+
+		scrollConsole();
 
 		renderTitle();
 
@@ -379,6 +394,15 @@ protected:
 	HorizontalMenu(const std::wstring& menuTitle)
 		: BasicMenu(menuTitle) {};
 	~HorizontalMenu() {};
+
+	void scrollConsole() override
+	{
+		int totalLines = 1/*title*/ + 1/*options*/ + 2/*description*/;
+		for (int i = 0; i < totalLines; i++) {
+			std::cout << "\n";
+		}
+		moveConsoleCursorUp(totalLines);
+	}
 
 	void renderTitle() override
 	{
@@ -460,6 +484,8 @@ public:
 	{
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
+
+		scrollConsole();
 
 		renderTitle();
 
