@@ -14,6 +14,13 @@
 #define KEY_ARROW_RIGHT 77	// 'M'
 #define KEY_ARROW_DOWN	80	// 'P'
 
+// Undefine max macro of windows.h
+// --> due to conflict with numeric_limits::min()
+#ifdef min
+#undef min
+#endif
+
+const int DEFAULT_OPTIONS_PER_PAGE = 10;
 
 class Option
 {
@@ -173,14 +180,25 @@ protected:
 class VerticalMenu : public BasicMenu
 {
 public:
+	virtual void addOption(const std::wstring& optDisplayName, const std::wstring& optDescription = L"") override {
+		BasicMenu::addOption(optDisplayName, optDescription);
+		m_totalPages = (m_options.size() + m_OPTIONS_PER_PAGE - 1) / m_OPTIONS_PER_PAGE;
+		m_B_USE_PAGING = m_totalPages > 1;
+	}
+
 private:
 protected:
 
-	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
-		: BasicMenu(menuTitle), m_cursorStyle(cursorStyle) {};
+	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>', 
+		int optsPerPage = DEFAULT_OPTIONS_PER_PAGE)	: BasicMenu(menuTitle), 
+		m_cursorStyle(cursorStyle), m_OPTIONS_PER_PAGE(optsPerPage) {};
 	~VerticalMenu() {};
 
 	const wchar_t m_cursorStyle;
+	int m_OPTIONS_PER_PAGE;
+	BOOL m_B_USE_PAGING = FALSE;
+	int m_currentPage = 0;
+	int m_totalPages = 0;
 
 	void scrollConsole() override
 	{
@@ -203,40 +221,123 @@ protected:
 	void renderOption(int optIdx) override
 	{
 		// move console cursor to line of selected option
-		moveConsoleCursorDown(optIdx);
+		moveConsoleCursorDown(optIdx % m_OPTIONS_PER_PAGE);
 
 		// display option
 		clearLine();
-		std::wcout << (m_menuCursorPos == optIdx ? m_cursorStyle : L' ');
+		std::wcout << (m_menuCursorPos == optIdx % m_OPTIONS_PER_PAGE ? m_cursorStyle : L' ');
 		std::wcout << L" [" << (m_options[optIdx].IsSelected() ? L'*' : L' ') << L"] ";
 		std::wcout << m_options[optIdx]._displayName;
 		std::wcout << std::endl;
 
 		// reset console cursor to initial position
-		moveConsoleCursorUp(optIdx + 1/*account for lines rendered above*/);
+		moveConsoleCursorUp(optIdx % m_OPTIONS_PER_PAGE + 1/*account for lines rendered above*/);
+	}
+
+	BOOL isOptionInPage(int optIdx, int pageIdx) {
+		int startIdx = pageIdx * m_OPTIONS_PER_PAGE;
+		int endIdx = std::min(startIdx + m_OPTIONS_PER_PAGE, (int)m_options.size());
+
+		if (optIdx < endIdx && optIdx >= startIdx) {
+			return TRUE;
+		}
+		return FALSE;
+	}
+
+	int getCurrentPageOptionCount() {
+		return std::min(m_OPTIONS_PER_PAGE, 
+			(int)m_options.size() - m_currentPage * m_OPTIONS_PER_PAGE);
+	}
+
+	void deletePage() {
+		for (int i = 0; i < m_OPTIONS_PER_PAGE; i++) {
+			clearLine();
+			moveConsoleCursorDown(1);
+		}
+		moveConsoleCursorUp(m_OPTIONS_PER_PAGE);
+	}
+
+	void renderPage(int pageIdx) {
+		deletePage();
+		int optionsInPage = getCurrentPageOptionCount();
+
+		// adjust menu cursor position, if needed
+		if (m_menuCursorPos > optionsInPage - 1) {
+			m_menuCursorPos = optionsInPage - 1;
+		}
+
+		for (int i = pageIdx * m_OPTIONS_PER_PAGE;
+			i < pageIdx * m_OPTIONS_PER_PAGE + optionsInPage;
+			i++
+		) {
+			renderOption(i);
+		}
+	}
+
+	void deletePageInfo() {
+		// move console cursor to line of selected option, and delete
+		moveConsoleCursorDown(
+			m_OPTIONS_PER_PAGE
+			+ 1/*for spacing between options and description*/
+			+ 1/*for page info*/);
+		clearLine();
+
+		// reset console cursor to initial position
+		moveConsoleCursorUp(m_OPTIONS_PER_PAGE + 2/*account for lines rendered above*/);
+	}
+
+	void renderPageInfo(int pageIdx) {
+		deletePageInfo();
+
+		// move console cursor to line of selected option
+		moveConsoleCursorDown(
+			m_OPTIONS_PER_PAGE
+			+ 1/*for spacing between options and description*/
+			+ 1/*for page info*/);
+		int startIdx = pageIdx * m_OPTIONS_PER_PAGE;
+		int endIdx = std::min(startIdx + m_OPTIONS_PER_PAGE, (int)m_options.size());
+		std::wcout << L"[ " << startIdx + 1 << L"-" << endIdx << L" / " 
+			<< m_options.size()	<< L" ]" << std::endl;
+
+		// reset console cursor to initial position
+		moveConsoleCursorUp(m_OPTIONS_PER_PAGE + 3/*account for lines rendered above*/);
 	}
 
 	void hideMenuCursor() {
 		m_menuCursorPos = -1;
 
-		// display all options
-		for (int i = 0; i < m_options.size(); i++) {
-			renderOption(i);
-		}
+		// refresh all options
+		renderPage(m_currentPage);
 	}
 
-	void deleteDescription() override {	// DOES NOT RESET CONSOLE CURSOR
-		// move console cursor to line of selected option, and delete
-		moveConsoleCursorDown(m_options.size() + 1);
+	void deleteDescription() override {
+		// move console cursor to line of description, and delete
+		moveConsoleCursorDown(
+			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size())
+			+ 1/*for spacing between options and description*/);
 		clearLine();
+		
+		// reset console cursor to initial position
+		moveConsoleCursorUp(
+			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size())
+			+ 1/*account for lines rendered above*/
+		);
 	}
 
 	void renderDescription(int optIdx) override {
 		deleteDescription();
-		std::wcout << m_options[m_menuCursorPos]._description << std::endl;
+		
+		// move console cursor to line of description
+		moveConsoleCursorDown(
+			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size())
+			+ 1/*for spacing between options and description*/);
+		std::wcout << m_options[optIdx]._description << std::endl;
 
 		// reset console cursor to initial position
-		moveConsoleCursorUp(m_options.size() + 2/*account for lines rendered above*/);
+		moveConsoleCursorUp(
+			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size()) 
+			+ 2/*account for lines rendered above*/
+		);
 	}
 };
 
@@ -246,11 +347,21 @@ protected:
 class CheckboxMenu : public VerticalMenu
 {
 public:
-	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
+	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle, 
+		int optsPerPage): VerticalMenu(menuTitle, cursorStyle, optsPerPage) {};
+
+	CheckboxMenu(const std::wstring& menuTitle, int optsPerPage) 
+		: VerticalMenu(menuTitle, optsPerPage) {};
+
+	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle) 
 		: VerticalMenu(menuTitle, cursorStyle) {};
 
-	void addOption(const std::wstring& optDisplayName, const std::wstring& optDescription = L"", BOOL isSelectedByDefault = FALSE) {
-		BasicMenu::addOption(optDisplayName, optDescription);
+	CheckboxMenu(const std::wstring& menuTitle)
+		: VerticalMenu(menuTitle) {};
+
+	void addOption(const std::wstring& optDisplayName, 
+		const std::wstring& optDescription = L"", BOOL isSelectedByDefault = FALSE) {
+		VerticalMenu::addOption(optDisplayName, optDescription);
 		if (isSelectedByDefault) {
 			toggleOption(m_options.back());
 		}
@@ -262,12 +373,12 @@ public:
 		BOOL finitoLaComedia = FALSE;
 
 		scrollConsole();
-
 		renderTitle();
-		
-		// display all options
-		for (int i = 0; i < m_options.size(); i++) {
-			renderOption(i);
+
+		// Display the first page
+		renderPage(0);
+		if (m_B_USE_PAGING) {
+			renderPageInfo(0);
 		}
 		renderDescription(0);
 
@@ -279,33 +390,50 @@ public:
 			switch (keyPress)
 			{
 			case KEY_SPACEBAR:
-				toggleOption(m_options[m_menuCursorPos]);
+				toggleOption(m_options[m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos]);
 				break;
 			case KEY_ARROW_UP:
 				if (m_menuCursorPos > 0) {
 					m_menuCursorPos--;
-					renderOption(m_menuCursorPos + 1);
+					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
 				}
 				break;
 			case KEY_ARROW_DOWN:
-				if (m_menuCursorPos < m_options.size() - 1) {
+				if (m_menuCursorPos < getCurrentPageOptionCount() - 1) {
 					m_menuCursorPos++;
-					renderOption(m_menuCursorPos - 1);
+					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
+				}
+				break;
+			case KEY_ARROW_LEFT:
+				if (m_B_USE_PAGING && m_currentPage > 0) {
+					m_currentPage--;
+					renderPage(m_currentPage);
+					renderPageInfo(m_currentPage);
+				}
+				break;
+			case KEY_ARROW_RIGHT:
+				if (m_B_USE_PAGING && m_currentPage < m_totalPages - 1) {
+					m_currentPage++;
+					renderPage(m_currentPage);
+					renderPageInfo(m_currentPage);
 				}
 				break;
 			case KEY_ENTER:
 				finitoLaComedia = TRUE;
-			
 			}
 
-			renderOption(m_menuCursorPos);
-			renderDescription(m_menuCursorPos);
+			renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
+			renderDescription(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
 
 		} while (!finitoLaComedia);
 
 		// cleanup before exit
 		hideMenuCursor();
 		deleteDescription();
+		if (m_B_USE_PAGING) {
+			deletePageInfo();
+		}
+		moveConsoleCursorDown(getCurrentPageOptionCount() + 2/*JUST AFTER MENU*/);
 	}
 
 private:
@@ -319,8 +447,17 @@ protected:
 class RadioMenu : public VerticalMenu
 {
 public:
-	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
+	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle, int optsPerPage)
+		: VerticalMenu(menuTitle, cursorStyle, optsPerPage) {};
+
+	RadioMenu(const std::wstring& menuTitle, int optsPerPage)
+		: VerticalMenu(menuTitle, optsPerPage) {};
+
+	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle)
 		: VerticalMenu(menuTitle, cursorStyle) {};
+
+	RadioMenu(const std::wstring& menuTitle)
+		: VerticalMenu(menuTitle) {};
 
 	void execute() override
 	{
@@ -328,12 +465,12 @@ public:
 		BOOL finitoLaComedia = FALSE;
 
 		scrollConsole();
-
 		renderTitle();
 
-		// display all options
-		for (int i = 0; i < m_options.size(); i++) {
-			renderOption(i);
+		// Display the first page
+		renderPage(0);
+		if (m_B_USE_PAGING) {
+			renderPageInfo(0);
 		}
 		renderDescription(0);
 
@@ -346,23 +483,42 @@ public:
 			{
 			case KEY_SPACEBAR:
 				// un-select selected option, if one is selected
-				if (m_selectedOptIdx != -1) {
+ 				if (m_selectedOptIdx != -1) {
 					unselectOption(m_options[m_selectedOptIdx]);
-					renderOption(m_selectedOptIdx);
+					if (isOptionInPage(
+						m_selectedOptIdx,
+						m_currentPage)
+					) {
+						renderOption(m_selectedOptIdx);
+					}
 				}
-				toggleOption(m_options[m_menuCursorPos]);
-				m_selectedOptIdx = m_menuCursorPos;
+				toggleOption(m_options[m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos]);
+				m_selectedOptIdx = m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos;
 				break;
 			case KEY_ARROW_UP:
 				if (m_menuCursorPos > 0) {
 					m_menuCursorPos--;
-					renderOption(m_menuCursorPos + 1);
+					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
 				}
 				break;
 			case KEY_ARROW_DOWN:
-				if (m_menuCursorPos < m_options.size() - 1) {
+				if (m_menuCursorPos < getCurrentPageOptionCount() - 1) {
 					m_menuCursorPos++;
-					renderOption(m_menuCursorPos - 1);
+					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
+				}
+				break;
+			case KEY_ARROW_LEFT:
+				if (m_currentPage > 0) {
+					m_currentPage--;
+					renderPage(m_currentPage);
+					renderPageInfo(m_currentPage);
+				}
+				break;
+			case KEY_ARROW_RIGHT:
+				if (m_currentPage < m_totalPages - 1) {
+					m_currentPage++;
+					renderPage(m_currentPage);
+					renderPageInfo(m_currentPage);
 				}
 				break;
 			case KEY_ENTER:
@@ -372,14 +528,18 @@ public:
 				}
 			}
 
-			renderOption(m_menuCursorPos);
-			renderDescription(m_menuCursorPos);
+			renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
+			renderDescription(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
 
 		} while (!finitoLaComedia);
 
 		// cleanup before exit
 		hideMenuCursor();
 		deleteDescription();
+		if (m_B_USE_PAGING) {
+			deletePageInfo();
+		}
+		moveConsoleCursorDown(getCurrentPageOptionCount() + 2/*JUST AFTER MENU*/);
 	}
 
 private:
