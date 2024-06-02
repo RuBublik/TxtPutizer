@@ -42,7 +42,7 @@ private:
 	// c-tor
 	Option(const std::wstring& optName, const std::wstring& optDescription)
 		: _displayName(optName), _description(optDescription), _selected(FALSE) {};
-	Option(const std::wstring& _title) : Option(_title, L"") {}
+	Option(const std::wstring& optName) : Option(optName, L"") {}
 	Option() : Option(L"") {}
 
 protected:
@@ -84,7 +84,7 @@ class BasicMenu
 {
 public:
 
-	void addOption(const std::wstring& optDisplayName, const std::wstring& optDescription = L"") {
+	virtual void addOption(const std::wstring& optDisplayName, const std::wstring& optDescription = L"") {
 		m_options.push_back({ optDisplayName, optDescription });
 	}
 
@@ -248,6 +248,13 @@ class CheckboxMenu : public VerticalMenu
 public:
 	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>')
 		: VerticalMenu(menuTitle, cursorStyle) {};
+
+	void addOption(const std::wstring& optDisplayName, const std::wstring& optDescription = L"", BOOL isSelectedByDefault = FALSE) {
+		BasicMenu::addOption(optDisplayName, optDescription);
+		if (isSelectedByDefault) {
+			toggleOption(m_options.back());
+		}
+	}
 
 	void execute() override
 	{
