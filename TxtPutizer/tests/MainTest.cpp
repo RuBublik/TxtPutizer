@@ -2,7 +2,7 @@
 
 void example_checkbox_menu()
 {
-	CheckboxMenu cbm(L"CHECKBOX_MENU");
+	CheckboxMenu cbm(L"CHECKBOX_MENU", 5);
 	cbm.addOption(L"opt1", L"desc1", TRUE);
 	cbm.addOption(L"opt2", L"desc2", TRUE);
 	cbm.addOption(L"opt3", L"desc3", TRUE);
@@ -44,11 +44,11 @@ void example_radio_menu()
 {
 	RadioMenu rm(L"RADIO_MENU");
 	rm.addOption(L"opt1", L"desc1");
-	rm.addOption(L"opt2", L"desc2");
-	rm.addOption(L"opt3", L"desc3");
-	rm.addOption(L"opt4", L"desc4");
-	rm.addOption(L"opt5", L"desc5");
-	rm.addOption(L"opt6", L"desc6");
+//	rm.addOption(L"opt2", L"desc2");
+//	rm.addOption(L"opt3", L"desc3");
+//	rm.addOption(L"opt4", L"desc4");
+//	rm.addOption(L"opt5", L"desc5");
+//	rm.addOption(L"opt6", L"desc6");
 
 //	un-comment to enable paging
 //
@@ -95,8 +95,8 @@ void example_prompt_menu()
 
 int main()
 {
-	//example_checkbox_menu();
-	example_radio_menu();
+	example_checkbox_menu();
+	//example_radio_menu();
 	//example_prompt_menu();
 
 	return 0;

@@ -14,13 +14,18 @@
 #define KEY_ARROW_RIGHT 77	// 'M'
 #define KEY_ARROW_DOWN	80	// 'P'
 
-// Undefine max macro of windows.h
-// --> due to conflict with numeric_limits::min()
+// Undefine min/max macro of windows.h
+// --> due to conflict with numeric_limits::min() / numeric_limits::max()
 #ifdef min
 #undef min
 #endif
+#ifdef max
+#undef max
+#endif
 
-const int DEFAULT_OPTIONS_PER_PAGE = 10;
+
+const int  DEFAULT_OPTIONS_PER_PAGE = 10;
+const char DEFAULT_CURSOR_STYLE		= L'>';
 
 class Option
 {
@@ -195,20 +200,33 @@ public:
 private:
 protected:
 
-	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle = L'>', 
-		int optsPerPage = DEFAULT_OPTIONS_PER_PAGE)	: BasicMenu(menuTitle), 
+	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle, int optsPerPage) 
+		: BasicMenu(menuTitle), 
 		m_cursorStyle(cursorStyle), m_OPTIONS_PER_PAGE(optsPerPage) {};
+	
+	VerticalMenu(const std::wstring& menuTitle, int optsPerPage)
+		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, optsPerPage) {};
+
+	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle) 
+		: VerticalMenu(menuTitle, cursorStyle, DEFAULT_OPTIONS_PER_PAGE) {};
+
+	VerticalMenu(const std::wstring& menuTitle)
+		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, DEFAULT_OPTIONS_PER_PAGE) {};
+
 	~VerticalMenu() {};
 
 	const wchar_t m_cursorStyle;
 	int m_OPTIONS_PER_PAGE;
 	BOOL m_B_USE_PAGING = FALSE;
-	int m_currentPage = 0;
+	int m_currentPageIdx = 0;
 	int m_totalPages = 0;
 
 	void scrollConsole() override
 	{
-		int totalLines = 2/*title*/ + m_options.size()/*options*/ + 2/*description*/;
+		int totalLines = 
+			2/*title*/ + 
+			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size())/*options*/ +
+			2/*description*/;
 		for (int i = 0; i < totalLines; i++) {
 			std::cout << "\n";
 		}
@@ -250,30 +268,40 @@ protected:
 		return FALSE;
 	}
 
-	int getCurrentPageOptionCount() {
+	int getNumOptionsInPage(int pageIdx) {
 		return std::min(m_OPTIONS_PER_PAGE, 
-			(int)m_options.size() - m_currentPage * m_OPTIONS_PER_PAGE);
+			(int)m_options.size() - pageIdx * m_OPTIONS_PER_PAGE);
 	}
 
 	void deletePage() {
-		for (int i = 0; i < m_OPTIONS_PER_PAGE; i++) {
+		int numOptsInPage;
+		if (m_B_USE_PAGING) {
+			 numOptsInPage = std::max(
+				getNumOptionsInPage(m_currentPageIdx),
+				m_OPTIONS_PER_PAGE
+				);
+		}
+		else {
+			numOptsInPage = getNumOptionsInPage(m_currentPageIdx);
+		}
+		for (int i = 0; i < numOptsInPage; i++) {
 			clearLine();
 			moveConsoleCursorDown(1);
 		}
-		moveConsoleCursorUp(m_OPTIONS_PER_PAGE);
+		moveConsoleCursorUp(numOptsInPage);
 	}
 
 	void renderPage(int pageIdx) {
 		deletePage();
-		int optionsInPage = getCurrentPageOptionCount();
+		int numOptionsInPage = getNumOptionsInPage(pageIdx);
 
 		// adjust menu cursor position, if needed
-		if (m_menuCursorPos > optionsInPage - 1) {
-			m_menuCursorPos = optionsInPage - 1;
+		if (m_menuCursorPos > numOptionsInPage - 1) {
+			m_menuCursorPos = numOptionsInPage - 1;
 		}
 
 		for (int i = pageIdx * m_OPTIONS_PER_PAGE;
-			i < pageIdx * m_OPTIONS_PER_PAGE + optionsInPage;
+			i < pageIdx * m_OPTIONS_PER_PAGE + numOptionsInPage;
 			i++
 		) {
 			renderOption(i);
@@ -313,7 +341,7 @@ protected:
 		m_menuCursorPos = -1;
 
 		// refresh all options
-		renderPage(m_currentPage);
+		renderPage(m_currentPageIdx);
 	}
 
 	void deleteDescription() override {
@@ -397,35 +425,36 @@ public:
 			switch (keyPress)
 			{
 			case KEY_SPACEBAR:
-				toggleOption(m_options[m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos]);
+				toggleOption(m_options[m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos]);
 				break;
 			case KEY_ARROW_UP:
 				if (m_menuCursorPos > 0) {
 					m_menuCursorPos--;
-					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
+					renderOption(m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
 					break;
 				}
 				continue;
 			case KEY_ARROW_DOWN:
-				if (m_menuCursorPos < getCurrentPageOptionCount() - 1) {
+				if (m_menuCursorPos < getNumOptionsInPage(m_currentPageIdx) - 1) {
 					m_menuCursorPos++;
-					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
+					renderOption(
+						m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
 					break;
 				}
 				continue;
 			case KEY_ARROW_LEFT:
-				if (m_B_USE_PAGING && m_currentPage > 0) {
-					m_currentPage--;
-					renderPage(m_currentPage);
-					renderPageInfo(m_currentPage);
+				if (m_B_USE_PAGING && m_currentPageIdx > 0) {
+					m_currentPageIdx--;
+					renderPage(m_currentPageIdx);
+					renderPageInfo(m_currentPageIdx);
 					break;
 				}
 				continue;
 			case KEY_ARROW_RIGHT:
-				if (m_B_USE_PAGING && m_currentPage < m_totalPages - 1) {
-					m_currentPage++;
-					renderPage(m_currentPage);
-					renderPageInfo(m_currentPage);
+				if (m_B_USE_PAGING && m_currentPageIdx < m_totalPages - 1) {
+					m_currentPageIdx++;
+					renderPage(m_currentPageIdx);
+					renderPageInfo(m_currentPageIdx);
 					break;
 				}
 				continue;
@@ -436,8 +465,8 @@ public:
 				continue;
 			}
 
-			renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
-			renderDescription(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
+			renderOption(m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos);
+			renderDescription(m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos);
 
 		} while (!finitoLaComedia);
 
@@ -447,7 +476,8 @@ public:
 		if (m_B_USE_PAGING) {
 			deletePageInfo();
 		}
-		moveConsoleCursorDown(getCurrentPageOptionCount() + 2/*JUST AFTER MENU*/);
+		moveConsoleCursorDown(
+			getNumOptionsInPage(m_currentPageIdx) + 2/*JUST AFTER MENU*/);
 	}
 
 private:
@@ -502,41 +532,41 @@ public:
 					unselectOption(m_options[m_selectedOptIdx]);
 					if (isOptionInPage(
 						m_selectedOptIdx,
-						m_currentPage)
+						m_currentPageIdx)
 					) {
 						renderOption(m_selectedOptIdx);
 					}
 				}
-				toggleOption(m_options[m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos]);
-				m_selectedOptIdx = m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos;
+				toggleOption(m_options[m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos]);
+				m_selectedOptIdx = m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos;
 				break;
 			case KEY_ARROW_UP:
 				if (m_menuCursorPos > 0) {
 					m_menuCursorPos--;
-					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
+					renderOption(m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
 					break;
 				}
 				continue;
 			case KEY_ARROW_DOWN:
-				if (m_menuCursorPos < getCurrentPageOptionCount() - 1) {
+				if (m_menuCursorPos < getNumOptionsInPage(m_currentPageIdx) - 1) {
 					m_menuCursorPos++;
-					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
+					renderOption(m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
 					break;
 				}
 				continue;
 			case KEY_ARROW_LEFT:
-				if (m_currentPage > 0) {
-					m_currentPage--;
-					renderPage(m_currentPage);
-					renderPageInfo(m_currentPage);
+				if (m_currentPageIdx > 0) {
+					m_currentPageIdx--;
+					renderPage(m_currentPageIdx);
+					renderPageInfo(m_currentPageIdx);
 					break;
 				}
 				continue;
 			case KEY_ARROW_RIGHT:
-				if (m_currentPage < m_totalPages - 1) {
-					m_currentPage++;
-					renderPage(m_currentPage);
-					renderPageInfo(m_currentPage);
+				if (m_currentPageIdx < m_totalPages - 1) {
+					m_currentPageIdx++;
+					renderPage(m_currentPageIdx);
+					renderPageInfo(m_currentPageIdx);
 					break;
 				}
 				continue;
@@ -550,8 +580,8 @@ public:
 				continue;
 			}
 
-			renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
-			renderDescription(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
+			renderOption(m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos);
+			renderDescription(m_currentPageIdx * m_OPTIONS_PER_PAGE + m_menuCursorPos);
 
 		} while (!finitoLaComedia);
 
@@ -561,7 +591,7 @@ public:
 		if (m_B_USE_PAGING) {
 			deletePageInfo();
 		}
-		moveConsoleCursorDown(getCurrentPageOptionCount() + 2/*JUST AFTER MENU*/);
+		moveConsoleCursorDown(getNumOptionsInPage(m_currentPageIdx) + 2/*JUST AFTER MENU*/);
 	}
 
 private:
