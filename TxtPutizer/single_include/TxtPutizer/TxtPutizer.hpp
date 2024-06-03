@@ -24,8 +24,8 @@
 #endif
 
 
-const int  DEFAULT_OPTIONS_PER_PAGE = 10;
-const char DEFAULT_CURSOR_STYLE		= L'>';
+const int	DEFAULT_OPTIONS_PER_PAGE	= 10;
+const char	DEFAULT_CURSOR_STYLE		= L'>';
 
 class Option
 {
@@ -121,6 +121,22 @@ protected:
 	virtual void deleteDescription() = 0;
 	// scrolls console down enough line so menu is not torn apart
 	virtual void scrollConsole() = 0;	
+
+	void hideConsoleCursor() {
+		HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+		CONSOLE_CURSOR_INFO cursorInfo;
+		GetConsoleCursorInfo(hConsole, &cursorInfo);
+		cursorInfo.bVisible = false;
+		SetConsoleCursorInfo(hConsole, &cursorInfo);
+	}
+
+	void showConsoleCursor() {
+		HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+		CONSOLE_CURSOR_INFO cursorInfo;
+		GetConsoleCursorInfo(hConsole, &cursorInfo);
+		cursorInfo.bVisible = true;
+		SetConsoleCursorInfo(hConsole, &cursorInfo);
+	}
 
 	// discard any unread input
 	void clearInputBuffer() {
@@ -406,6 +422,7 @@ public:
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
 
+		hideConsoleCursor();
 		scrollConsole();
 		renderTitle();
 
@@ -478,6 +495,7 @@ public:
 		}
 		moveConsoleCursorDown(
 			getNumOptionsInPage(m_currentPageIdx) + 2/*JUST AFTER MENU*/);
+		showConsoleCursor();
 	}
 
 private:
@@ -508,6 +526,7 @@ public:
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
 
+		hideConsoleCursor();
 		scrollConsole();
 		renderTitle();
 
@@ -591,7 +610,9 @@ public:
 		if (m_B_USE_PAGING) {
 			deletePageInfo();
 		}
-		moveConsoleCursorDown(getNumOptionsInPage(m_currentPageIdx) + 2/*JUST AFTER MENU*/);
+		moveConsoleCursorDown(
+			getNumOptionsInPage(m_currentPageIdx) + 2/*JUST AFTER MENU*/);
+		showConsoleCursor();
 	}
 
 private:
@@ -704,8 +725,8 @@ public:
 		char keyPress;
 		BOOL finitoLaComedia = FALSE;
 
+		hideConsoleCursor();
 		scrollConsole();
-
 		renderTitle();
 
 		// display all options
@@ -752,6 +773,7 @@ public:
 		} while (!finitoLaComedia);
 
 		deleteDescription();
+		showConsoleCursor();
 	}
 
 private:
