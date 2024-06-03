@@ -117,6 +117,12 @@ protected:
 	// scrolls console down enough line so menu is not torn apart
 	virtual void scrollConsole() = 0;	
 
+	// discard any unread input
+	void clearInputBuffer() {
+		HANDLE hInput = GetStdHandle(STD_INPUT_HANDLE);
+		FlushConsoleInputBuffer(hInput);
+	}
+
 	void clearLine() {
 		std::cout << "\033[2K"; // overwrite current line
 		std::cout << "\033[0G"; // Move cursor to beginning of line
@@ -386,6 +392,7 @@ public:
 		{
 			// MENU CONTROL
 			// (get user input & update state)
+			clearInputBuffer();
 			keyPress = _getch();
 			switch (keyPress)
 			{
@@ -396,30 +403,37 @@ public:
 				if (m_menuCursorPos > 0) {
 					m_menuCursorPos--;
 					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ARROW_DOWN:
 				if (m_menuCursorPos < getCurrentPageOptionCount() - 1) {
 					m_menuCursorPos++;
 					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ARROW_LEFT:
 				if (m_B_USE_PAGING && m_currentPage > 0) {
 					m_currentPage--;
 					renderPage(m_currentPage);
 					renderPageInfo(m_currentPage);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ARROW_RIGHT:
 				if (m_B_USE_PAGING && m_currentPage < m_totalPages - 1) {
 					m_currentPage++;
 					renderPage(m_currentPage);
 					renderPageInfo(m_currentPage);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ENTER:
 				finitoLaComedia = TRUE;
+				break;
+			default:
+				continue;
 			}
 
 			renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
@@ -478,6 +492,7 @@ public:
 		{
 			// MENU CONTROL
 			// (get user input & update state)
+			clearInputBuffer();
 			keyPress = _getch();
 			switch (keyPress)
 			{
@@ -499,33 +514,40 @@ public:
 				if (m_menuCursorPos > 0) {
 					m_menuCursorPos--;
 					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos + 1);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ARROW_DOWN:
 				if (m_menuCursorPos < getCurrentPageOptionCount() - 1) {
 					m_menuCursorPos++;
 					renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos - 1);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ARROW_LEFT:
 				if (m_currentPage > 0) {
 					m_currentPage--;
 					renderPage(m_currentPage);
 					renderPageInfo(m_currentPage);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ARROW_RIGHT:
 				if (m_currentPage < m_totalPages - 1) {
 					m_currentPage++;
 					renderPage(m_currentPage);
 					renderPageInfo(m_currentPage);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ENTER:
 				// prevent exit until an option is selected
 				if (m_selectedOptIdx != -1) {
 					finitoLaComedia = TRUE;
 				}
+				break;
+			default:
+				continue;
 			}
 
 			renderOption(m_currentPage * m_OPTIONS_PER_PAGE + m_menuCursorPos);
@@ -666,6 +688,7 @@ public:
 		{
 			// MENU CONTROL
 			// (get user input & update state)
+			clearInputBuffer();
 			keyPress = _getch();
 			switch (keyPress)
 			{
@@ -673,20 +696,24 @@ public:
 				if (m_menuCursorPos > 0) {
 					m_menuCursorPos--;
 					renderOption(m_menuCursorPos + 1);
+					break;
 				}
-				break;
+				continue;
 			case KEY_ARROW_RIGHT:
 				if (m_menuCursorPos < m_options.size() - 1) {
 					m_menuCursorPos++;
 					renderOption(m_menuCursorPos - 1);
+					break;
 				}
-				break;
+				continue;
 			// either of space/enter makes a selection
 			case KEY_SPACEBAR:
 			case KEY_ENTER:
 				selectOption(m_options[m_menuCursorPos]);
 				finitoLaComedia = TRUE;
 				break;
+			default:
+				continue;
 			}
 
 			renderOption(m_menuCursorPos);
