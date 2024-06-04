@@ -26,6 +26,7 @@
 
 const int	DEFAULT_OPTIONS_PER_PAGE	= 10;
 const char	DEFAULT_CURSOR_STYLE		= L'>';
+const int	TRUNC_CHARS					= 5;
 
 class Option
 {
@@ -120,7 +121,20 @@ protected:
 	virtual void renderDescription(int optIdx) = 0;
 	virtual void deleteDescription() = 0;
 	// scrolls console down enough line so menu is not torn apart
-	virtual void scrollConsole() = 0;	
+	virtual void scrollConsole() = 0;
+	
+	std::wstring truncateString(const std::wstring& str, int maxSize)
+	{
+		if (str.size() <= maxSize) {
+			return str;
+		}
+		int maxSizeWithReplacement = maxSize - TRUNC_CHARS;
+		std::wstring truncatedStr = str.substr(0, maxSizeWithReplacement);
+		if (truncatedStr.length() < str.length()) {
+			truncatedStr += L"~" + str.substr(str.length() - TRUNC_CHARS);
+		}
+		return truncatedStr;
+	}
 
 	void hideConsoleCursor() {
 		HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -136,6 +150,15 @@ protected:
 		GetConsoleCursorInfo(hConsole, &cursorInfo);
 		cursorInfo.bVisible = true;
 		SetConsoleCursorInfo(hConsole, &cursorInfo);
+	}
+
+	int getConsoleLineSize() {
+		HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+		CONSOLE_SCREEN_BUFFER_INFO csbi;
+		if (!GetConsoleScreenBufferInfo(hConsole, &csbi)) {
+			return -1;
+		}
+		return csbi.dwSize.X;
 	}
 
 	// discard any unread input
@@ -267,7 +290,7 @@ protected:
 		clearLine();
 		std::wcout << (m_menuCursorPos == optIdx % m_OPTIONS_PER_PAGE ? m_cursorStyle : L' ');
 		std::wcout << L" [" << (m_options[optIdx].IsSelected() ? L'*' : L' ') << L"] ";
-		std::wcout << m_options[optIdx]._displayName;
+		std::wcout << truncateString(m_options[optIdx]._displayName, getConsoleLineSize() - 7);
 		std::wcout << std::endl;
 
 		// reset console cursor to initial position
@@ -381,7 +404,7 @@ protected:
 		moveConsoleCursorDown(
 			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size())
 			+ 1/*for spacing between options and description*/);
-		std::wcout << m_options[optIdx]._description << std::endl;
+		std::wcout << truncateString(m_options[optIdx]._description, getConsoleLineSize()) << std::endl;
 
 		// reset console cursor to initial position
 		moveConsoleCursorUp(
@@ -649,22 +672,13 @@ protected:
 		std::wcout << m_title << L"  ";
 	}
 
-	std::wstring truncateString(const std::wstring& str)
-	{
-		if (str.size() > m_maxOptLength) {
-			return str.substr(0, m_maxOptLength - 3) + L"...";
-		}
-		return str;
-	}
-
 	void renderOption(int optIdx) override
 	{
 		// move console cursor to line of selected option
 		int optStartPos = 0;
 		for (int i = 0; i < optIdx; i++) {
-			optStartPos += truncateString(
-				m_options[i]._displayName).size() > m_maxOptLength ?
-				m_maxOptLength : m_options[i]._displayName.size();
+			optStartPos += 
+				truncateString(m_options[i]._displayName, m_maxOptLength).size();
 			optStartPos += 4/*account for spacing between options*/;
 			if (i < m_options.size() - 1) {
 				optStartPos += 3;
@@ -673,10 +687,9 @@ protected:
 		moveConsoleCursorRight(optStartPos);
 
 		// display option
-		std::wstring truncatedOpt = truncateString(m_options[optIdx]._displayName);
-		int optLength = truncatedOpt.size() > m_maxOptLength ?
-			m_maxOptLength : m_options[optIdx]._displayName.size() 
-			+ 4/*account for spacing between options*/;
+		std::wstring truncatedOpt = 
+			truncateString(m_options[optIdx]._displayName, m_maxOptLength);
+		int optLength = truncatedOpt.size()	+ 4/*account for spacing between options*/;
 		clearRight(optLength);
 
 		if (m_menuCursorPos == optIdx) {
@@ -703,7 +716,7 @@ protected:
 
 	void renderDescription(int optIdx) override {
 		deleteDescription();
-		std::wcout << m_options[m_menuCursorPos]._description << std::endl;
+		std::wcout << truncateString(m_options[m_menuCursorPos]._description, getConsoleLineSize()) << std::endl;
 
 		// reset console cursor to initial position
 		moveConsoleCursorUp(3/*account for lines rendered above*/);
