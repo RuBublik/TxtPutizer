@@ -27,6 +27,8 @@
 const int	DEFAULT_OPTIONS_PER_PAGE	= 10;
 const char	DEFAULT_CURSOR_STYLE		= L'>';
 const int	TRUNC_CHARS					= 5;
+const std::wstring NO_INSTRUCTION		= L"";
+
 
 class Option
 {
@@ -237,23 +239,62 @@ public:
 	}
 
 private:
+
+	void renderInstruction()
+	{
+		std::wcout << m_instruction;
+	}
+
+	void renderPageInfo(int pageIdx)
+	{
+		int startIdx = pageIdx * m_OPTIONS_PER_PAGE;
+		int endIdx = std::min(startIdx + m_OPTIONS_PER_PAGE, (int)m_options.size());
+		std::wcout << L"[ " << startIdx + 1 << L"-" << endIdx << L" / "
+			<< m_options.size() << L" ]";
+	}
+
 protected:
 
-	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle, int optsPerPage) 
+	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle, int optsPerPage, 
+		const std::wstring& instruction) 
 		: BasicMenu(menuTitle), 
-		m_cursorStyle(cursorStyle), m_OPTIONS_PER_PAGE(optsPerPage) {};
-	
+		m_cursorStyle(cursorStyle), 
+		m_OPTIONS_PER_PAGE(optsPerPage), 
+		m_instruction(instruction) {};
+
+
+	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle, int optsPerPage)
+		: VerticalMenu(menuTitle, cursorStyle, optsPerPage, NO_INSTRUCTION) {};
+
+	VerticalMenu(const std::wstring& menuTitle, int optsPerPage,
+		const std::wstring& instruction)
+		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, optsPerPage, instruction) {};
+
+	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle,
+		const std::wstring& instruction)
+		: VerticalMenu(menuTitle, cursorStyle, DEFAULT_OPTIONS_PER_PAGE, instruction) {};
+
+
 	VerticalMenu(const std::wstring& menuTitle, int optsPerPage)
-		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, optsPerPage) {};
+		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, optsPerPage, 
+			NO_INSTRUCTION) {};
 
 	VerticalMenu(const std::wstring& menuTitle, wchar_t cursorStyle) 
-		: VerticalMenu(menuTitle, cursorStyle, DEFAULT_OPTIONS_PER_PAGE) {};
+		: VerticalMenu(menuTitle, cursorStyle, DEFAULT_OPTIONS_PER_PAGE, 
+			NO_INSTRUCTION) {};
 
-	VerticalMenu(const std::wstring& menuTitle)
-		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, DEFAULT_OPTIONS_PER_PAGE) {};
+	VerticalMenu(const std::wstring& menuTitle,	const std::wstring& instruction)
+		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, DEFAULT_OPTIONS_PER_PAGE, 
+			instruction) {};
+
+
+	VerticalMenu(const std::wstring& menuTitle)	
+		: VerticalMenu(menuTitle, DEFAULT_CURSOR_STYLE, DEFAULT_OPTIONS_PER_PAGE, 
+			NO_INSTRUCTION) {};
 
 	~VerticalMenu() {};
 
+	std::wstring m_instruction;
 	const wchar_t m_cursorStyle;
 	int m_OPTIONS_PER_PAGE;
 	BOOL m_B_USE_PAGING = FALSE;
@@ -270,6 +311,44 @@ protected:
 			std::cout << "\n";
 		}
 		moveConsoleCursorUp(totalLines);
+	}
+
+	void renderFooter()
+	{
+		if (!m_B_USE_PAGING && m_instruction == NO_INSTRUCTION)
+			return;
+
+		// move console cursor to line of footer, and delete
+		moveConsoleCursorDown(
+			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size())
+			+ 1/*for spacing between options and description*/
+			+ 1/*for description*/);
+		std::cout << "-";
+		clearLine();
+		moveConsoleCursorDown(1);
+		clearLine();
+		moveConsoleCursorUp(1);
+
+		for (int i = 0; i < std::max(m_title.length(), m_instruction.length() + 1); i++) {
+			std::wcout << L"-";
+		}
+		std::wcout << std::endl;
+
+		if (m_instruction != NO_INSTRUCTION) {
+			renderInstruction();
+			std::wcout << L" | ";
+		}
+		if (m_B_USE_PAGING) {
+			renderPageInfo(m_currentPageIdx);
+		}
+		std::wcout << std::endl;
+
+		// move console cursor to line of footer, and delete
+		moveConsoleCursorUp(
+			std::min(m_OPTIONS_PER_PAGE, (int)m_options.size())
+			+ 1/*for spacing between options and description*/
+			+ 1/*for description*/
+			+ 2/*for footer itself*/);
 	}
 
 	void renderTitle() override
@@ -347,35 +426,6 @@ protected:
 		}
 	}
 
-	void deletePageInfo() {
-		// move console cursor to line of selected option, and delete
-		moveConsoleCursorDown(
-			m_OPTIONS_PER_PAGE
-			+ 1/*for spacing between options and description*/
-			+ 1/*for page info*/);
-		clearLine();
-
-		// reset console cursor to initial position
-		moveConsoleCursorUp(m_OPTIONS_PER_PAGE + 2/*account for lines rendered above*/);
-	}
-
-	void renderPageInfo(int pageIdx) {
-		deletePageInfo();
-
-		// move console cursor to line of selected option
-		moveConsoleCursorDown(
-			m_OPTIONS_PER_PAGE
-			+ 1/*for spacing between options and description*/
-			+ 1/*for page info*/);
-		int startIdx = pageIdx * m_OPTIONS_PER_PAGE;
-		int endIdx = std::min(startIdx + m_OPTIONS_PER_PAGE, (int)m_options.size());
-		std::wcout << L"[ " << startIdx + 1 << L"-" << endIdx << L" / " 
-			<< m_options.size()	<< L" ]" << std::endl;
-
-		// reset console cursor to initial position
-		moveConsoleCursorUp(m_OPTIONS_PER_PAGE + 3/*account for lines rendered above*/);
-	}
-
 	void hideMenuCursor() {
 		m_menuCursorPos = -1;
 
@@ -421,7 +471,24 @@ class CheckboxMenu : public VerticalMenu
 {
 public:
 	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle, 
-		int optsPerPage): VerticalMenu(menuTitle, cursorStyle, optsPerPage) {};
+		int optsPerPage, const std::wstring& instruction) 
+		: VerticalMenu(menuTitle, cursorStyle, optsPerPage, instruction) {};
+
+
+	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle, int optsPerPage)
+		: VerticalMenu(menuTitle, cursorStyle, optsPerPage) {};
+
+	CheckboxMenu(const std::wstring& menuTitle, int optsPerPage,
+		const std::wstring& instruction)
+		: VerticalMenu(menuTitle, optsPerPage, instruction) {};
+
+	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle, 
+		const std::wstring& instruction)
+		: VerticalMenu(menuTitle, cursorStyle, instruction) {};
+
+
+	CheckboxMenu(const std::wstring& menuTitle, const std::wstring& instruction)
+		: VerticalMenu(menuTitle, instruction) {};
 
 	CheckboxMenu(const std::wstring& menuTitle, int optsPerPage) 
 		: VerticalMenu(menuTitle, optsPerPage) {};
@@ -429,8 +496,10 @@ public:
 	CheckboxMenu(const std::wstring& menuTitle, wchar_t cursorStyle) 
 		: VerticalMenu(menuTitle, cursorStyle) {};
 
+
 	CheckboxMenu(const std::wstring& menuTitle)
 		: VerticalMenu(menuTitle) {};
+
 
 	void addOption(const std::wstring& optDisplayName, 
 		const std::wstring& optDescription = L"", BOOL isSelectedByDefault = FALSE) {
@@ -448,13 +517,9 @@ public:
 		hideConsoleCursor();
 		scrollConsole();
 		renderTitle();
-
-		// Display the first page
 		renderPage(0);
-		if (m_B_USE_PAGING) {
-			renderPageInfo(0);
-		}
 		renderDescription(0);
+		renderFooter();
 
 		do
 		{
@@ -486,7 +551,7 @@ public:
 				if (m_B_USE_PAGING && m_currentPageIdx > 0) {
 					m_currentPageIdx--;
 					renderPage(m_currentPageIdx);
-					renderPageInfo(m_currentPageIdx);
+					renderFooter();
 					break;
 				}
 				continue;
@@ -494,7 +559,7 @@ public:
 				if (m_B_USE_PAGING && m_currentPageIdx < m_totalPages - 1) {
 					m_currentPageIdx++;
 					renderPage(m_currentPageIdx);
-					renderPageInfo(m_currentPageIdx);
+					renderFooter();
 					break;
 				}
 				continue;
@@ -511,13 +576,9 @@ public:
 		} while (!finitoLaComedia);
 
 		// cleanup before exit
-		hideMenuCursor();
-		deleteDescription();
-		if (m_B_USE_PAGING) {
-			deletePageInfo();
-		}
+		//hideMenuCursor();
 		moveConsoleCursorDown(
-			getNumOptionsInPage(m_currentPageIdx) + 2/*JUST AFTER MENU*/);
+			getNumOptionsInPage(m_currentPageIdx) + 5/*JUST AFTER MENU*/);
 		showConsoleCursor();
 	}
 
@@ -532,14 +593,32 @@ protected:
 class RadioMenu : public VerticalMenu
 {
 public:
+	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle,
+		int optsPerPage, const std::wstring& instruction)
+		: VerticalMenu(menuTitle, cursorStyle, optsPerPage, instruction) {};
+
+
 	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle, int optsPerPage)
 		: VerticalMenu(menuTitle, cursorStyle, optsPerPage) {};
+
+	RadioMenu(const std::wstring& menuTitle, int optsPerPage,
+		const std::wstring& instruction)
+		: VerticalMenu(menuTitle, optsPerPage, instruction) {};
+
+	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle,
+		const std::wstring& instruction)
+		: VerticalMenu(menuTitle, cursorStyle, instruction) {};
+
+
+	RadioMenu(const std::wstring& menuTitle, const std::wstring& instruction)
+		: VerticalMenu(menuTitle, instruction) {};
 
 	RadioMenu(const std::wstring& menuTitle, int optsPerPage)
 		: VerticalMenu(menuTitle, optsPerPage) {};
 
 	RadioMenu(const std::wstring& menuTitle, wchar_t cursorStyle)
 		: VerticalMenu(menuTitle, cursorStyle) {};
+
 
 	RadioMenu(const std::wstring& menuTitle)
 		: VerticalMenu(menuTitle) {};
@@ -552,13 +631,9 @@ public:
 		hideConsoleCursor();
 		scrollConsole();
 		renderTitle();
-
-		// Display the first page
 		renderPage(0);
-		if (m_B_USE_PAGING) {
-			renderPageInfo(0);
-		}
 		renderDescription(0);
+		renderFooter();
 
 		do
 		{
@@ -600,7 +675,7 @@ public:
 				if (m_currentPageIdx > 0) {
 					m_currentPageIdx--;
 					renderPage(m_currentPageIdx);
-					renderPageInfo(m_currentPageIdx);
+					renderFooter();
 					break;
 				}
 				continue;
@@ -608,7 +683,7 @@ public:
 				if (m_currentPageIdx < m_totalPages - 1) {
 					m_currentPageIdx++;
 					renderPage(m_currentPageIdx);
-					renderPageInfo(m_currentPageIdx);
+					renderFooter();
 					break;
 				}
 				continue;
@@ -628,13 +703,9 @@ public:
 		} while (!finitoLaComedia);
 
 		// cleanup before exit
-		hideMenuCursor();
-		deleteDescription();
-		if (m_B_USE_PAGING) {
-			deletePageInfo();
-		}
+		//hideMenuCursor();
 		moveConsoleCursorDown(
-			getNumOptionsInPage(m_currentPageIdx) + 2/*JUST AFTER MENU*/);
+			getNumOptionsInPage(m_currentPageIdx) + 5/*JUST AFTER MENU*/);
 		showConsoleCursor();
 	}
 
